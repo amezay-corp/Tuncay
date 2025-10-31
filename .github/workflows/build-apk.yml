@@ -33,20 +33,17 @@ jobs:
           export ANDROID_SDK_ROOT=$HOME/android-sdk
           yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_SDK_ROOT --licenses || true
           $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_SDK_ROOT "platform-tools" "platforms;android-33" "build-tools;33.0.2"
+
       - name: Add Android SDK to PATH
         run: echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
 
-      - name: Install Gradle
+      - name: Install Gradle on runner
         run: |
           sudo apt-get update
           sudo apt-get install -y wget unzip
           wget -q https://services.gradle.org/distributions/gradle-8.6-bin.zip -O /tmp/gradle.zip
           sudo unzip -q /tmp/gradle.zip -d /opt/gradle
-          echo "/opt/gradle/gradle-8.6/bin" | sudo tee /etc/profile.d/gradle.sh
-          sudo chmod +x /etc/profile.d/gradle.sh
-          source /etc/profile.d/gradle.sh
-          echo "GRADLE_HOME=/opt/gradle/gradle-8.6" >> $GITHUB_ENV
-          echo "PATH=/opt/gradle/gradle-8.6/bin:$PATH" >> $GITHUB_ENV
+          echo "export PATH=/opt/gradle/gradle-8.6/bin:$PATH" >> $GITHUB_ENV
 
       - name: Build Debug APK (use system gradle)
         env:
