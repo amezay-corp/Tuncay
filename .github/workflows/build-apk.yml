@@ -1,4 +1,4 @@
-name: Build Debug APK (Kotlin support, Clean Build)
+name: Build Debug APK (Kotlin support, system gradle, clean build)
 
 on:
   push:
@@ -15,8 +15,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Clean Gradle build
-        run: |
-          ./gradlew clean || gradle clean || true
+        run: gradle clean || true
 
       - name: Set up JDK 17 (Temurin)
         uses: actions/setup-java@v4
@@ -36,7 +35,7 @@ jobs:
           mv $HOME/android-sdk/cmdline-tools/cmdline-tools/* $HOME/android-sdk/cmdline-tools/latest/ || true
           export SDK_DIR="$HOME/android-sdk"
           yes | $SDK_DIR/cmdline-tools/latest/bin/sdkmanager --sdk_root=$SDK_DIR --licenses || true
-          $SDK_DIR/cmdline-tools/latest/bin/sdkmanager --sdk_root=$SDK_DIR "platform-tools" "platforms;android-33" "build-tools;33.0.2"
+          $SDK_DIR/cmdline-tools/latest/bin/sdkmanager --sdk_root=$SDK_DIR "platform-tools" "platforms;android-33" "build-tools;33.0.2" "build-tools;30.0.3"
 
       - name: Set Android SDK env vars
         run: |
@@ -44,27 +43,20 @@ jobs:
           echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
           echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
 
-      - name: Ensure Gradle wrapper
+      - name: Install Gradle 7.5 on runner
         run: |
-          if [ ! -f "./gradlew" ]; then
-            wget https://services.gradle.org/distributions/gradle-7.5-bin.zip -O gradle.zip
-            unzip -q gradle.zip
-            mv gradle-7.5/* .
-            chmod +x ./gradlew || true
-          fi
+          wget -q https://services.gradle.org/distributions/gradle-7.5-bin.zip -O /tmp/gradle.zip
+          sudo unzip -q /tmp/gradle.zip -d /opt/gradle
+          echo "/opt/gradle/gradle-7.5/bin" >> $GITHUB_PATH
 
-      - name: Add Kotlin plugin if missing
-        run: |
-          if ! grep -q "id 'kotlin-android'" app/build.gradle; then
-            echo "Kotlin plugin eksik, eklenmeli!"
-            exit 1
-          fi
+      - name: Show gradle version
+        run: gradle -v
 
-      - name: Build Debug APK
+      - name: Build debug APK with system gradle
         env:
           ANDROID_HOME: ${{ env.ANDROID_HOME }}
           ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
-        run: ./gradlew assembleDebug --no-daemon
+        run: gradle assembleDebug --no-daemon
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
