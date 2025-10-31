@@ -8,7 +8,8 @@
     <application
         android:label="TUNCAY MÜHENDİSLİK"
         android:allowBackup="true"
-        android:supportsRtl="true">
+        android:supportsRtl="true"
+        android:theme="@style/Theme.AppCompat.Light.NoActionBar">
         <service android:name="org.eclipse.paho.android.service.MqttService" android:exported="false"/>
 
         <activity android:name=".MainActivity"
@@ -19,5 +20,4 @@
             </intent-filter>
         </activity>
     </application>
-
 </manifest>
