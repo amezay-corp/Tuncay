@@ -1,4 +1,4 @@
-name: Build Debug APK (Gradle 7.5)
+name: Build Debug APK (Kotlin support, Clean Build)
 
 on:
   push:
@@ -9,11 +9,14 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
 
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Clean Gradle build
+        run: |
+          ./gradlew clean || gradle clean || true
 
       - name: Set up JDK 17 (Temurin)
         uses: actions/setup-java@v4
@@ -31,7 +34,6 @@ jobs:
           unzip -q cmdline-tools.zip -d $HOME/android-sdk/cmdline-tools
           mkdir -p $HOME/android-sdk/cmdline-tools/latest
           mv $HOME/android-sdk/cmdline-tools/cmdline-tools/* $HOME/android-sdk/cmdline-tools/latest/ || true
-          # Set a single SDK location and install packages
           export SDK_DIR="$HOME/android-sdk"
           yes | $SDK_DIR/cmdline-tools/latest/bin/sdkmanager --sdk_root=$SDK_DIR --licenses || true
           $SDK_DIR/cmdline-tools/latest/bin/sdkmanager --sdk_root=$SDK_DIR "platform-tools" "platforms;android-33" "build-tools;33.0.2"
@@ -40,21 +42,29 @@ jobs:
         run: |
           echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
-          echo "PATH=/opt/gradle/gradle-7.5/bin:/opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.16-8/x64/bin:$HOME/android-sdk/platform-tools:$PATH" >> $GITHUB_ENV
+          echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
 
-      - name: Install Gradle 7.5 on runner
+      - name: Ensure Gradle wrapper
         run: |
-          wget -q https://services.gradle.org/distributions/gradle-7.5-bin.zip -O /tmp/gradle.zip
-          sudo unzip -q /tmp/gradle.zip -d /opt/gradle
-          echo "PATH=/opt/gradle/gradle-7.5/bin:$PATH" >> $GITHUB_ENV
-      - name: Show gradle version
-        run: gradle -v
+          if [ ! -f "./gradlew" ]; then
+            wget https://services.gradle.org/distributions/gradle-7.5-bin.zip -O gradle.zip
+            unzip -q gradle.zip
+            mv gradle-7.5/* .
+            chmod +x ./gradlew || true
+          fi
 
-      - name: Build debug APK with Gradle 7.5
+      - name: Add Kotlin plugin if missing
+        run: |
+          if ! grep -q "id 'kotlin-android'" app/build.gradle; then
+            echo "Kotlin plugin eksik, eklenmeli!"
+            exit 1
+          fi
+
+      - name: Build Debug APK
         env:
           ANDROID_HOME: ${{ env.ANDROID_HOME }}
           ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
-        run: gradle assembleDebug --no-daemon
+        run: ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
