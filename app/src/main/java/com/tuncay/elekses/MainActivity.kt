@@ -13,7 +13,11 @@ import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import org.eclipse.paho.client.mqttv3.*
+import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken
+import org.eclipse.paho.client.mqttv3.MqttCallback
+import org.eclipse.paho.client.mqttv3.MqttClient
+import org.eclipse.paho.client.mqttv3.MqttConnectOptions
+import org.eclipse.paho.client.mqttv3.MqttMessage
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 
 class MainActivity : AppCompatActivity() {
@@ -28,9 +32,7 @@ class MainActivity : AppCompatActivity() {
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        // nothing required here, flash blinking will check permission again
-    }
+    ) { /* no-op */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -38,13 +40,14 @@ class MainActivity : AppCompatActivity() {
         labelTv = findViewById(R.id.labelTv)
         labelTv.text = "TUNCAY MÜHENDİSLİK"
 
+        // Request camera permission for flash if needed
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissionLauncher.launch(Manifest.permission.CAMERA)
             }
         }
 
-        connectMqtt()
+        connectMqttSafely()
     }
 
     override fun onDestroy() {
@@ -52,34 +55,38 @@ class MainActivity : AppCompatActivity() {
         try {
             mqttClient?.disconnect()
         } catch (_: Exception) {}
-        mediaPlayer?.release()
+        try {
+            mediaPlayer?.release()
+        } catch (_: Exception) {}
     }
 
-    private fun connectMqtt() {
-        try {
-            val persistence = MemoryPersistence()
-            mqttClient = MqttClient(brokerUrl, clientId, persistence)
-            val options = MqttConnectOptions()
-            options.isAutomaticReconnect = true
-            options.isCleanSession = true
-            mqttClient?.setCallback(object : MqttCallback {
-                override fun connectionLost(cause: Throwable?) {
-                    runOnUiThread { labelTv.text = "MQTT bağlantısı koptu" }
-                }
+    private fun connectMqttSafely() {
+        Thread {
+            try {
+                val persistence = MemoryPersistence()
+                mqttClient = MqttClient(brokerUrl, clientId, persistence)
+                val options = MqttConnectOptions()
+                options.isAutomaticReconnect = true
+                options.isCleanSession = true
+                mqttClient?.setCallback(object : MqttCallback {
+                    override fun connectionLost(cause: Throwable?) {
+                        runOnUiThread { labelTv.text = "MQTT bağlantısı koptu" }
+                    }
 
-                override fun messageArrived(topic: String?, message: MqttMessage?) {
-                    val payload = message?.toString()?.trim() ?: return
-                    runOnUiThread { handleMessage(payload) }
-                }
+                    override fun messageArrived(topic: String?, message: MqttMessage?) {
+                        val payload = message?.toString()?.trim() ?: return
+                        runOnUiThread { handleMessage(payload) }
+                    }
 
-                override fun deliveryComplete(token: IMqttDeliveryToken?) {}
-            })
-            mqttClient?.connect(options)
-            mqttClient?.subscribe(topic, 1)
-            runOnUiThread { labelTv.text = "MQTT bağlı: $brokerUrl" }
-        } catch (e: Exception) {
-            runOnUiThread { labelTv.text = "MQTT bağlanma hatası: ${e.message}" }
-        }
+                    override fun deliveryComplete(token: IMqttDeliveryToken?) {}
+                })
+                mqttClient?.connect(options)
+                mqttClient?.subscribe(topic, 1)
+                runOnUiThread { labelTv.text = "MQTT bağlı: $brokerUrl" }
+            } catch (e: Exception) {
+                runOnUiThread { labelTv.text = "MQTT bağlanma hatası: ${e.message}" }
+            }
+        }.start()
     }
 
     private fun handleMessage(payload: String) {
@@ -88,31 +95,35 @@ class MainActivity : AppCompatActivity() {
         lastState = payload
         when (payload) {
             "ON" -> {
-                playSound(R.raw.elek_ok)
-                blinkFlash(3)
+                playSoundSafely(R.raw.elek_ok)
+                blinkFlashSafely(3)
             }
             "OFF" -> {
-                playSound(R.raw.elekt_yok)
-                blinkFlash(3)
+                playSoundSafely(R.raw.elekt_yok)
+                blinkFlashSafely(3)
             }
         }
     }
 
-    private fun playSound(resId: Int) {
+    private fun playSoundSafely(resId: Int) {
         try {
             mediaPlayer?.stop()
             mediaPlayer?.release()
         } catch (_: Exception) {}
-        mediaPlayer = MediaPlayer.create(this, resId)
-        mediaPlayer?.setOnCompletionListener {
-            it.release()
+        try {
+            mediaPlayer = MediaPlayer.create(this, resId)
+            mediaPlayer?.setOnCompletionListener {
+                try { it.release() } catch (_: Exception) {}
+            }
+            mediaPlayer?.start()
+        } catch (e: Exception) {
+            // ignore playback errors (missing resource, etc.)
         }
-        mediaPlayer?.start()
     }
 
-    private fun blinkFlash(times: Int, onMs: Long = 200, offMs: Long = 200) {
+    private fun blinkFlashSafely(times: Int, onMs: Long = 200, offMs: Long = 200) {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) return
-        val cameraManager = getSystemService(CAMERA_SERVICE) as CameraManager
+        val cameraManager = getSystemService(CAMERA_SERVICE) as? CameraManager ?: return
         try {
             val cameraId = cameraManager.cameraIdList.firstOrNull { id ->
                 try {
