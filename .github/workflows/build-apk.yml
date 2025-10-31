@@ -31,11 +31,16 @@ jobs:
           unzip -q cmdline-tools.zip -d $HOME/android-sdk/cmdline-tools
           mkdir -p $HOME/android-sdk/cmdline-tools/latest
           mv $HOME/android-sdk/cmdline-tools/cmdline-tools/* $HOME/android-sdk/cmdline-tools/latest/ || true
-          export ANDROID_SDK_ROOT=$HOME/android-sdk
-          yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_SDK_ROOT --licenses || true
-          $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_SDK_ROOT "platform-tools" "platforms;android-33" "build-tools;33.0.2"
-      - name: Set ANDROID_SDK_ROOT
-        run: echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
+          # Set a single SDK location and install packages
+          export SDK_DIR="$HOME/android-sdk"
+          yes | $SDK_DIR/cmdline-tools/latest/bin/sdkmanager --sdk_root=$SDK_DIR --licenses || true
+          $SDK_DIR/cmdline-tools/latest/bin/sdkmanager --sdk_root=$SDK_DIR "platform-tools" "platforms;android-33" "build-tools;33.0.2"
+
+      - name: Set Android SDK env vars
+        run: |
+          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "PATH=/opt/gradle/gradle-7.5/bin:/opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.16-8/x64/bin:$HOME/android-sdk/platform-tools:$PATH" >> $GITHUB_ENV
 
       - name: Install Gradle 7.5 on runner
         run: |
@@ -47,6 +52,7 @@ jobs:
 
       - name: Build debug APK with Gradle 7.5
         env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
           ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
         run: gradle assembleDebug --no-daemon
 
