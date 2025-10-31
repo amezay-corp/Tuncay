@@ -1,4 +1,4 @@
-name: Build Debug APK
+name: Build Debug APK (Gradle 7.5)
 
 on:
   push:
@@ -9,9 +9,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
 
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up JDK 17 (Temurin)
@@ -20,7 +21,7 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Install Android SDK command-line tools and platform 33
+      - name: Install Android SDK cmdline-tools & platform 33
         run: |
           sudo apt-get update
           sudo apt-get install -y unzip wget
@@ -33,19 +34,18 @@ jobs:
           export ANDROID_SDK_ROOT=$HOME/android-sdk
           yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_SDK_ROOT --licenses || true
           $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_SDK_ROOT "platform-tools" "platforms;android-33" "build-tools;33.0.2"
-
-      - name: Add Android SDK to PATH
+      - name: Set ANDROID_SDK_ROOT
         run: echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
 
-      - name: Install Gradle on runner
+      - name: Install Gradle 7.5 on runner
         run: |
-          sudo apt-get update
-          sudo apt-get install -y wget unzip
-          wget -q https://services.gradle.org/distributions/gradle-8.6-bin.zip -O /tmp/gradle.zip
+          wget -q https://services.gradle.org/distributions/gradle-7.5-bin.zip -O /tmp/gradle.zip
           sudo unzip -q /tmp/gradle.zip -d /opt/gradle
-          echo "export PATH=/opt/gradle/gradle-8.6/bin:$PATH" >> $GITHUB_ENV
+          echo "PATH=/opt/gradle/gradle-7.5/bin:$PATH" >> $GITHUB_ENV
+      - name: Show gradle version
+        run: gradle -v
 
-      - name: Build Debug APK (use system gradle)
+      - name: Build debug APK with Gradle 7.5
         env:
           ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
         run: gradle assembleDebug --no-daemon
